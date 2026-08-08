@@ -32,6 +32,9 @@ class LibraryPage(ctk.CTkFrame):
 
         self.user_seeking = False
 
+        # Prevent multiple automatic next calls
+        self.song_change_in_progress = False
+
         # ===========================
         # Title
         # ===========================
@@ -497,10 +500,13 @@ class LibraryPage(ctk.CTkFrame):
                 if (
                     self.player.is_playing
                     and not self.player.is_paused
-                    and not self.player.is_music_playing()
+                    and self.player.has_finished()
+                    and not self.song_change_in_progress
                 ):
 
-                    self.next_music()
+                    print("Song finished.")
+
+                    self.handle_song_finished()
 
         except Exception as e:
 
@@ -516,6 +522,120 @@ class LibraryPage(ctk.CTkFrame):
             500,
             self.update_progress
         )
+
+    # ===================================
+    # Handle Song Finished
+    # ===================================
+
+    def handle_song_finished(self):
+
+        if not self.audio_files:
+            return
+
+        # Prevent repeated calls
+        self.song_change_in_progress = True
+
+        try:
+
+            # ===========================
+            # Repeat Current Song
+            # ===========================
+
+            if self.repeat_enabled:
+
+                if self.current_index == -1:
+
+                    return
+
+                filepath = self.audio_files[
+                    self.current_index
+                ]
+
+                print(
+                    "Repeat enabled - replaying current song."
+                )
+
+                self.play_file(
+                    filepath
+                )
+
+                return
+
+            # ===========================
+            # Shuffle Mode
+            # ===========================
+
+            if self.shuffle_enabled:
+
+                if len(self.audio_files) == 1:
+
+                    self.current_index = 0
+
+                else:
+
+                    possible_indexes = [
+                        i
+                        for i in range(
+                            len(self.audio_files)
+                        )
+                        if i != self.current_index
+                    ]
+
+                    self.current_index = random.choice(
+                        possible_indexes
+                    )
+
+                filepath = self.audio_files[
+                    self.current_index
+                ]
+
+                print(
+                    "Shuffle enabled - playing random song."
+                )
+
+                self.play_file(
+                    filepath
+                )
+
+                return
+
+            # ===========================
+            # Normal Next
+            # ===========================
+
+            if self.current_index == -1:
+
+                self.current_index = 0
+
+            else:
+
+                self.current_index += 1
+
+                # Loop to first song
+
+                if (
+                    self.current_index
+                    >= len(self.audio_files)
+                ):
+
+                    self.current_index = 0
+
+            filepath = self.audio_files[
+                self.current_index
+            ]
+
+            print(
+                "Playing next song."
+            )
+
+            self.play_file(
+                filepath
+            )
+
+        finally:
+
+            # Allow future automatic song changes
+            self.song_change_in_progress = False
 
     # ===================================
     # Load Files
@@ -772,50 +892,62 @@ class LibraryPage(ctk.CTkFrame):
 
             return
 
-        success = self.player.play(
-            filepath
-        )
+        try:
 
-        if success:
-
-            self.current_file = filepath
-
-            # Find current song index
-
-            if filepath in self.audio_files:
-
-                self.current_index = (
-                    self.audio_files.index(
-                        filepath
-                    )
-                )
-
-            filename = os.path.basename(
+            success = self.player.play(
                 filepath
             )
 
-            self.now_playing.configure(
-                text=f"🎵 {filename}"
+            if success:
+
+                self.current_file = filepath
+
+                # Find current song index
+
+                if filepath in self.audio_files:
+
+                    self.current_index = (
+                        self.audio_files.index(
+                            filepath
+                        )
+                    )
+
+                filename = os.path.basename(
+                    filepath
+                )
+
+                self.now_playing.configure(
+                    text=f"🎵 {filename}"
+                )
+
+                # ===========================
+                # Reset Progress
+                # ===========================
+
+                duration = self.player.get_duration()
+
+                self.progress_slider.configure(
+                    from_=0,
+                    to=max(duration, 1)
+                )
+
+                self.progress_slider.set(0)
+
+                self.current_time_label.configure(
+                    text="00:00"
+                )
+
+                self.duration_label.configure(
+                    text=self.format_time(duration)
+                )
+
+        except Exception as e:
+
+            print(
+                "Could not play song:"
             )
 
-            # Reset progress
-
-            duration = self.player.get_duration()
-
-            self.progress_slider.configure(
-                from_=0,
-                to=max(duration, 1)
-            )
-
-            self.progress_slider.set(0)
-
-            self.current_time_label.configure(
-                text="00:00"
-            )
-
-            self.duration_label.configure(
-                text=self.format_time(duration)
-            )
+            print(e)
 
     # ===================================
     # Previous Music
@@ -826,31 +958,39 @@ class LibraryPage(ctk.CTkFrame):
         if not self.audio_files:
             return
 
-        if self.current_index == -1:
+        self.song_change_in_progress = True
 
-            self.current_index = (
-                len(self.audio_files) - 1
-            )
+        try:
 
-        else:
-
-            self.current_index -= 1
-
-            # Loop to last song
-
-            if self.current_index < 0:
+            if self.current_index == -1:
 
                 self.current_index = (
                     len(self.audio_files) - 1
                 )
 
-        filepath = self.audio_files[
-            self.current_index
-        ]
+            else:
 
-        self.play_file(
-            filepath
-        )
+                self.current_index -= 1
+
+                # Loop to last song
+
+                if self.current_index < 0:
+
+                    self.current_index = (
+                        len(self.audio_files) - 1
+                    )
+
+            filepath = self.audio_files[
+                self.current_index
+            ]
+
+            self.play_file(
+                filepath
+            )
+
+        finally:
+
+            self.song_change_in_progress = False
 
     # ===================================
     # Next Music
@@ -861,14 +1001,79 @@ class LibraryPage(ctk.CTkFrame):
         if not self.audio_files:
             return
 
-        # ===========================
-        # Repeat Current Song
-        # ===========================
+        self.song_change_in_progress = True
 
-        if (
-            self.repeat_enabled
-            and self.current_index != -1
-        ):
+        try:
+
+            # ===========================
+            # Repeat Current Song
+            # ===========================
+
+            if (
+                self.repeat_enabled
+                and self.current_index != -1
+            ):
+
+                filepath = self.audio_files[
+                    self.current_index
+                ]
+
+                self.play_file(
+                    filepath
+                )
+
+                return
+
+            # ===========================
+            # Shuffle Mode
+            # ===========================
+
+            if self.shuffle_enabled:
+
+                # Only one song
+
+                if len(self.audio_files) == 1:
+
+                    self.current_index = 0
+
+                else:
+
+                    possible_indexes = [
+                        i
+                        for i in range(
+                            len(self.audio_files)
+                        )
+                        if i != self.current_index
+                    ]
+
+                    self.current_index = (
+                        random.choice(
+                            possible_indexes
+                        )
+                    )
+
+            # ===========================
+            # Normal Mode
+            # ===========================
+
+            else:
+
+                if self.current_index == -1:
+
+                    self.current_index = 0
+
+                else:
+
+                    self.current_index += 1
+
+                    # Loop to first song
+
+                    if (
+                        self.current_index
+                        >= len(self.audio_files)
+                    ):
+
+                        self.current_index = 0
 
             filepath = self.audio_files[
                 self.current_index
@@ -878,66 +1083,9 @@ class LibraryPage(ctk.CTkFrame):
                 filepath
             )
 
-            return
+        finally:
 
-        # ===========================
-        # Shuffle Mode
-        # ===========================
-
-        if self.shuffle_enabled:
-
-            # Only one song
-
-            if len(self.audio_files) == 1:
-
-                self.current_index = 0
-
-            else:
-
-                possible_indexes = [
-                    i
-                    for i in range(
-                        len(self.audio_files)
-                    )
-                    if i != self.current_index
-                ]
-
-                self.current_index = (
-                    random.choice(
-                        possible_indexes
-                    )
-                )
-
-        # ===========================
-        # Normal Mode
-        # ===========================
-
-        else:
-
-            if self.current_index == -1:
-
-                self.current_index = 0
-
-            else:
-
-                self.current_index += 1
-
-                # Loop to first song
-
-                if (
-                    self.current_index
-                    >= len(self.audio_files)
-                ):
-
-                    self.current_index = 0
-
-        filepath = self.audio_files[
-            self.current_index
-        ]
-
-        self.play_file(
-            filepath
-        )
+            self.song_change_in_progress = False
 
     # ===================================
     # Toggle Shuffle
@@ -1104,6 +1252,4 @@ class LibraryPage(ctk.CTkFrame):
                 "Could not open file:"
             )
 
-            print(
-                e
-            )
+            print(e)
