@@ -27,6 +27,12 @@ class LibraryPage(ctk.CTkFrame):
         self.repeat_enabled = False
 
         # ===========================
+        # Seek State
+        # ===========================
+
+        self.user_seeking = False
+
+        # ===========================
         # Title
         # ===========================
 
@@ -94,7 +100,7 @@ class LibraryPage(ctk.CTkFrame):
 
         self.player_frame = ctk.CTkFrame(
             self,
-            height=160
+            height=220
         )
 
         self.player_frame.pack(
@@ -118,6 +124,81 @@ class LibraryPage(ctk.CTkFrame):
 
         self.now_playing.pack(
             pady=(10, 5)
+        )
+
+        # ===========================
+        # Progress Time Container
+        # ===========================
+
+        time_frame = ctk.CTkFrame(
+            self.player_frame,
+            fg_color="transparent"
+        )
+
+        time_frame.pack(
+            fill="x",
+            padx=70,
+            pady=(5, 0)
+        )
+
+        # Current time
+
+        self.current_time_label = ctk.CTkLabel(
+            time_frame,
+            text="00:00",
+            font=("Segoe UI", 12),
+            text_color=TEXT
+        )
+
+        self.current_time_label.pack(
+            side="left"
+        )
+
+        # Duration
+
+        self.duration_label = ctk.CTkLabel(
+            time_frame,
+            text="00:00",
+            font=("Segoe UI", 12),
+            text_color=TEXT
+        )
+
+        self.duration_label.pack(
+            side="right"
+        )
+
+        # ===========================
+        # Progress Slider
+        # ===========================
+
+        self.progress_slider = ctk.CTkSlider(
+            self.player_frame,
+            width=700,
+            height=16,
+            from_=0,
+            to=1,
+            command=self.progress_slider_changed
+        )
+
+        self.progress_slider.set(0)
+
+        self.progress_slider.pack(
+            padx=70,
+            pady=(2, 8)
+        )
+
+        # Detect when user starts dragging
+
+        self.progress_slider.bind(
+            "<ButtonPress-1>",
+            self.start_seeking
+        )
+
+        # Detect when user releases slider
+
+        self.progress_slider.bind(
+            "<ButtonRelease-1>",
+            self.finish_seeking
         )
 
         # ===========================
@@ -279,6 +360,163 @@ class LibraryPage(ctk.CTkFrame):
 
         self.load_files()
 
+        # ===========================
+        # Start Progress Updates
+        # ===========================
+
+        self.update_progress()
+
+    # ===================================
+    # Format Time
+    # ===================================
+
+    def format_time(self, seconds):
+
+        try:
+            seconds = int(seconds)
+
+        except (TypeError, ValueError):
+            seconds = 0
+
+        minutes = seconds // 60
+        remaining_seconds = seconds % 60
+
+        hours = minutes // 60
+        minutes = minutes % 60
+
+        if hours > 0:
+
+            return (
+                f"{hours:02d}:"
+                f"{minutes:02d}:"
+                f"{remaining_seconds:02d}"
+            )
+
+        return (
+            f"{minutes:02d}:"
+            f"{remaining_seconds:02d}"
+        )
+
+    # ===================================
+    # Progress Slider Changed
+    # ===================================
+
+    def progress_slider_changed(self, value):
+
+        if not self.user_seeking:
+            return
+
+        duration = self.player.get_duration()
+
+        if duration <= 0:
+            return
+
+        position = float(value)
+
+        self.current_time_label.configure(
+            text=self.format_time(position)
+        )
+
+    # ===================================
+    # Start Seeking
+    # ===================================
+
+    def start_seeking(self, event=None):
+
+        self.user_seeking = True
+
+    # ===================================
+    # Finish Seeking
+    # ===================================
+
+    def finish_seeking(self, event=None):
+
+        self.user_seeking = False
+
+        duration = self.player.get_duration()
+
+        if duration <= 0:
+            return
+
+        position = float(
+            self.progress_slider.get()
+        )
+
+        self.player.seek(position)
+
+    # ===================================
+    # Update Progress
+    # ===================================
+
+    def update_progress(self):
+
+        try:
+
+            if self.current_file:
+
+                duration = self.player.get_duration()
+
+                position = self.player.get_position()
+
+                # ===========================
+                # Update Duration
+                # ===========================
+
+                self.duration_label.configure(
+                    text=self.format_time(duration)
+                )
+
+                # ===========================
+                # Update Progress
+                # ===========================
+
+                if not self.user_seeking and duration > 0:
+
+                    position = min(
+                        position,
+                        duration
+                    )
+
+                    self.progress_slider.configure(
+                        from_=0,
+                        to=duration
+                    )
+
+                    self.progress_slider.set(
+                        position
+                    )
+
+                    self.current_time_label.configure(
+                        text=self.format_time(position)
+                    )
+
+                # ===========================
+                # Detect Song Finished
+                # ===========================
+
+                if (
+                    self.player.is_playing
+                    and not self.player.is_paused
+                    and not self.player.is_music_playing()
+                ):
+
+                    self.next_music()
+
+        except Exception as e:
+
+            print(
+                "Progress update error:"
+            )
+
+            print(e)
+
+        # Run again after 500 ms
+
+        self.after(
+            500,
+            self.update_progress
+        )
+
     # ===================================
     # Load Files
     # ===================================
@@ -286,10 +524,12 @@ class LibraryPage(ctk.CTkFrame):
     def load_files(self):
 
         # Remove existing rows
+
         for widget in self.files_frame.winfo_children():
             widget.destroy()
 
         # Downloads folder
+
         downloads_folder = os.path.join(
             os.path.dirname(
                 os.path.dirname(__file__)
@@ -305,6 +545,7 @@ class LibraryPage(ctk.CTkFrame):
         files = []
 
         # Scan downloads folder
+
         for filename in os.listdir(
             downloads_folder
         ):
@@ -540,6 +781,7 @@ class LibraryPage(ctk.CTkFrame):
             self.current_file = filepath
 
             # Find current song index
+
             if filepath in self.audio_files:
 
                 self.current_index = (
@@ -556,6 +798,25 @@ class LibraryPage(ctk.CTkFrame):
                 text=f"🎵 {filename}"
             )
 
+            # Reset progress
+
+            duration = self.player.get_duration()
+
+            self.progress_slider.configure(
+                from_=0,
+                to=max(duration, 1)
+            )
+
+            self.progress_slider.set(0)
+
+            self.current_time_label.configure(
+                text="00:00"
+            )
+
+            self.duration_label.configure(
+                text=self.format_time(duration)
+            )
+
     # ===================================
     # Previous Music
     # ===================================
@@ -564,9 +825,6 @@ class LibraryPage(ctk.CTkFrame):
 
         if not self.audio_files:
             return
-
-        # If no song is selected,
-        # start from the last song.
 
         if self.current_index == -1:
 
@@ -579,6 +837,7 @@ class LibraryPage(ctk.CTkFrame):
             self.current_index -= 1
 
             # Loop to last song
+
             if self.current_index < 0:
 
                 self.current_index = (
@@ -628,6 +887,7 @@ class LibraryPage(ctk.CTkFrame):
         if self.shuffle_enabled:
 
             # Only one song
+
             if len(self.audio_files) == 1:
 
                 self.current_index = 0
@@ -663,6 +923,7 @@ class LibraryPage(ctk.CTkFrame):
                 self.current_index += 1
 
                 # Loop to first song
+
                 if (
                     self.current_index
                     >= len(self.audio_files)
@@ -783,6 +1044,18 @@ class LibraryPage(ctk.CTkFrame):
 
         self.now_playing.configure(
             text="Nothing playing"
+        )
+
+        self.progress_slider.set(0)
+
+        self.current_time_label.configure(
+            text="00:00"
+        )
+
+        self.duration_label.configure(
+            text=self.format_time(
+                self.player.get_duration()
+            )
         )
 
     # ===================================
