@@ -36,6 +36,13 @@ class LibraryPage(ctk.CTkFrame):
         self.song_change_in_progress = False
 
         # ===========================
+        # Library Search
+        # ===========================
+
+        self.all_files = []
+        self.search_query = ""
+
+        # ===========================
         # Title
         # ===========================
 
@@ -60,6 +67,52 @@ class LibraryPage(ctk.CTkFrame):
         )
 
         subtitle.pack(pady=(0, 15))
+
+        # ===========================
+        # Search Library
+        # ===========================
+
+        search_frame = ctk.CTkFrame(
+            self,
+            fg_color="transparent"
+        )
+
+        search_frame.pack(
+            fill="x",
+            padx=50,
+            pady=(0, 10)
+        )
+
+        self.search_entry = ctk.CTkEntry(
+            search_frame,
+            width=650,
+            height=40,
+            placeholder_text="🔎 Search your library..."
+        )
+
+        self.search_entry.pack(
+            side="left",
+            fill="x",
+            expand=True,
+            padx=(0, 10)
+        )
+
+        self.search_entry.bind(
+            "<KeyRelease>",
+            self.search_library
+        )
+
+        clear_search_button = ctk.CTkButton(
+            search_frame,
+            text="✕ Clear",
+            width=90,
+            height=40,
+            command=self.clear_search
+        )
+
+        clear_search_button.pack(
+            side="right"
+        )
 
         # ===========================
         # Refresh Button
@@ -643,12 +696,8 @@ class LibraryPage(ctk.CTkFrame):
 
     def load_files(self):
 
-        # Remove existing rows
-
         for widget in self.files_frame.winfo_children():
             widget.destroy()
-
-        # Downloads folder
 
         downloads_folder = os.path.join(
             os.path.dirname(
@@ -664,11 +713,7 @@ class LibraryPage(ctk.CTkFrame):
 
         files = []
 
-        # Scan downloads folder
-
-        for filename in os.listdir(
-            downloads_folder
-        ):
+        for filename in os.listdir(downloads_folder):
 
             filepath = os.path.join(
                 downloads_folder,
@@ -676,14 +721,7 @@ class LibraryPage(ctk.CTkFrame):
             )
 
             if os.path.isfile(filepath):
-
-                files.append(
-                    filename
-                )
-
-        # ===========================
-        # Sort Newest First
-        # ===========================
+                files.append(filename)
 
         files.sort(
             key=lambda filename:
@@ -696,9 +734,7 @@ class LibraryPage(ctk.CTkFrame):
             reverse=True
         )
 
-        # ===========================
-        # Store Audio Files
-        # ===========================
+        self.all_files = files
 
         self.audio_files = []
 
@@ -717,10 +753,6 @@ class LibraryPage(ctk.CTkFrame):
                     )
                 )
 
-        # ===========================
-        # Empty Library
-        # ===========================
-
         if not files:
 
             empty_label = ctk.CTkLabel(
@@ -730,15 +762,92 @@ class LibraryPage(ctk.CTkFrame):
                 text_color=TEXT
             )
 
-            empty_label.pack(
-                pady=100
-            )
-
+            empty_label.pack(pady=100)
             return
 
-        # ===========================
-        # Create File Rows
-        # ===========================
+        self.display_files(
+            self.search_query
+        )
+
+    # ===================================
+    # Search Library
+    # ===================================
+
+    def search_library(self, event=None):
+
+        self.search_query = (
+            self.search_entry.get()
+            .strip()
+            .lower()
+        )
+
+        self.display_files(
+            self.search_query
+        )
+
+    # ===================================
+    # Clear Search
+    # ===================================
+
+    def clear_search(self):
+
+        self.search_entry.delete(
+            0,
+            "end"
+        )
+
+        self.search_query = ""
+
+        self.display_files()
+
+        self.search_entry.focus_set()
+
+    # ===================================
+    # Display Files
+    # ===================================
+
+    def display_files(self, query=""):
+
+        for widget in self.files_frame.winfo_children():
+            widget.destroy()
+
+        downloads_folder = os.path.join(
+            os.path.dirname(
+                os.path.dirname(__file__)
+            ),
+            "downloads"
+        )
+
+        query = query.strip().lower()
+
+        if query:
+
+            files = [
+                filename
+                for filename in self.all_files
+                if query in filename.lower()
+            ]
+
+        else:
+
+            files = list(self.all_files)
+
+        if not files:
+
+            if query:
+                message = f'🔎 No results for "{query}"'
+            else:
+                message = "📂 Your library is empty"
+
+            empty_label = ctk.CTkLabel(
+                self.files_frame,
+                text=message,
+                font=("Segoe UI", 20, "bold"),
+                text_color=TEXT
+            )
+
+            empty_label.pack(pady=100)
+            return
 
         for filename in files:
 
