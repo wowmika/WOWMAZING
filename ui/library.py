@@ -3,6 +3,7 @@ from core.theme import *
 from core.player import MusicPlayer
 import os
 import random
+import json
 
 
 class LibraryPage(ctk.CTkFrame):
@@ -41,6 +42,23 @@ class LibraryPage(ctk.CTkFrame):
 
         self.all_files = []
         self.search_query = ""
+
+        # ===========================
+        # Favorites
+        # ===========================
+
+        self.favorites_file = os.path.join(
+            os.path.dirname(
+                os.path.dirname(__file__)
+            ),
+            "database",
+            "favorites.json"
+        )
+
+        self.favorites = set()
+        self.favorites_only = False
+
+        self.load_favorites()
 
         # ===========================
         # Title
@@ -112,6 +130,25 @@ class LibraryPage(ctk.CTkFrame):
 
         clear_search_button.pack(
             side="right"
+        )
+
+        # ===========================
+        # Favorites Filter
+        # ===========================
+
+        self.favorites_button = ctk.CTkButton(
+            self,
+            text="⭐ Favorites",
+            width=180,
+            height=40,
+            font=("Segoe UI", 14, "bold"),
+            fg_color="#1f6aa5",
+            hover_color="#144870",
+            command=self.toggle_favorites_filter
+        )
+
+        self.favorites_button.pack(
+            pady=(0, 10)
         )
 
         # ===========================
@@ -691,6 +728,146 @@ class LibraryPage(ctk.CTkFrame):
             self.song_change_in_progress = False
 
     # ===================================
+    # Load Favorites
+    # ===================================
+
+    def load_favorites(self):
+
+        try:
+
+            os.makedirs(
+                os.path.dirname(
+                    self.favorites_file
+                ),
+                exist_ok=True
+            )
+
+            if not os.path.exists(
+                self.favorites_file
+            ):
+
+                self.favorites = set()
+                return
+
+            with open(
+                self.favorites_file,
+                "r",
+                encoding="utf-8"
+            ) as file:
+
+                data = json.load(file)
+
+            if isinstance(data, list):
+
+                self.favorites = set(data)
+
+            else:
+
+                self.favorites = set()
+
+        except Exception as e:
+
+            print("Could not load favorites:")
+            print(e)
+
+            self.favorites = set()
+
+    # ===================================
+    # Save Favorites
+    # ===================================
+
+    def save_favorites(self):
+
+        try:
+
+            os.makedirs(
+                os.path.dirname(
+                    self.favorites_file
+                ),
+                exist_ok=True
+            )
+
+            with open(
+                self.favorites_file,
+                "w",
+                encoding="utf-8"
+            ) as file:
+
+                json.dump(
+                    sorted(self.favorites),
+                    file,
+                    indent=4,
+                    ensure_ascii=False
+                )
+
+        except Exception as e:
+
+            print("Could not save favorites:")
+            print(e)
+
+    # ===================================
+    # Toggle Favorite
+    # ===================================
+
+    def toggle_favorite(self, filename):
+
+        if filename in self.favorites:
+
+            self.favorites.remove(filename)
+
+            print(
+                f"Removed from favorites: {filename}"
+            )
+
+        else:
+
+            self.favorites.add(filename)
+
+            print(
+                f"Added to favorites: {filename}"
+            )
+
+        self.save_favorites()
+
+        self.display_files(
+            self.search_query
+        )
+
+    # ===================================
+    # Toggle Favorites Filter
+    # ===================================
+
+    def toggle_favorites_filter(self):
+
+        self.favorites_only = (
+            not self.favorites_only
+        )
+
+        if self.favorites_only:
+
+            self.favorites_button.configure(
+                text="⭐ Favorites ON",
+                fg_color="#2e8b57",
+                hover_color="#246b45"
+            )
+
+            print("Favorites filter enabled")
+
+        else:
+
+            self.favorites_button.configure(
+                text="⭐ Favorites",
+                fg_color="#1f6aa5",
+                hover_color="#144870"
+            )
+
+            print("Favorites filter disabled")
+
+        self.display_files(
+            self.search_query
+        )
+
+    # ===================================
     # Load Files
     # ===================================
 
@@ -820,17 +997,27 @@ class LibraryPage(ctk.CTkFrame):
 
         query = query.strip().lower()
 
+        # ===========================
+        # Filter by Search + Favorites
+        # ===========================
+
+        files = list(self.all_files)
+
         if query:
 
             files = [
                 filename
-                for filename in self.all_files
+                for filename in files
                 if query in filename.lower()
             ]
 
-        else:
+        if self.favorites_only:
 
-            files = list(self.all_files)
+            files = [
+                filename
+                for filename in files
+                if filename in self.favorites
+            ]
 
         if not files:
 
@@ -915,6 +1102,30 @@ class LibraryPage(ctk.CTkFrame):
         )
 
         # ===========================
+        # Favorite Button
+        # ===========================
+
+        is_favorite = (
+            filename in self.favorites
+        )
+
+        favorite_button = ctk.CTkButton(
+            row,
+            text="⭐" if is_favorite else "☆",
+            width=40,
+            height=35,
+            fg_color="transparent",
+            hover_color="#333333",
+            command=lambda:
+                self.toggle_favorite(filename)
+        )
+
+        favorite_button.pack(
+            side="right",
+            padx=(5, 5)
+        )
+
+        # ===========================
         # Filename
         # ===========================
 
@@ -957,7 +1168,7 @@ class LibraryPage(ctk.CTkFrame):
 
             play_button.pack(
                 side="right",
-                padx=(5, 15)
+                padx=(5, 5)
             )
 
         # ===========================
@@ -984,7 +1195,7 @@ class LibraryPage(ctk.CTkFrame):
 
             open_button.pack(
                 side="right",
-                padx=(5, 15)
+                padx=(5, 5)
             )
 
     # ===================================
