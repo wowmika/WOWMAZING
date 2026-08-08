@@ -5,6 +5,7 @@ darkdetect==0.8.0
 ffmpeg-python==0.2.0
 future==1.0.0
 idna==3.18
+mutagen==1.48.1
 packaging==26.3
 pillow==12.3.0
 pygame-ce==2.5.7
