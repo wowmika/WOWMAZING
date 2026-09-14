@@ -1,6 +1,20 @@
 import os
+from dataclasses import dataclass
+from io import BytesIO
+
 import pygame
 from mutagen.mp3 import MP3
+from PIL import Image, ImageDraw
+
+
+@dataclass(frozen=True)
+class TrackMetadata:
+    """Display metadata extracted from a local MP3 file."""
+
+    title: str
+    artist: str
+    duration: float
+    artwork: Image.Image
 
 
 class MusicPlayer:
@@ -100,6 +114,44 @@ class MusicPlayer:
             print(e)
 
             return 0
+
+    def get_track_metadata(self, filepath: str) -> TrackMetadata:
+        """Read MP3 tags and embedded artwork, with useful display fallbacks."""
+        title = os.path.splitext(os.path.basename(filepath))[0]
+        artist = "Unknown artist"
+        duration = self.get_file_duration(filepath)
+        artwork = self._default_artwork()
+
+        try:
+            audio = MP3(filepath)
+            tags = audio.tags
+            if tags:
+                title_frame = tags.get("TIT2")
+                artist_frame = tags.get("TPE1")
+                if title_frame and title_frame.text:
+                    title = str(title_frame.text[0])
+                if artist_frame and artist_frame.text:
+                    artist = str(artist_frame.text[0])
+
+                pictures = tags.getall("APIC")
+                if pictures:
+                    with Image.open(BytesIO(pictures[0].data)) as image:
+                        artwork = image.convert("RGB")
+        except Exception as error:
+            print("Could not read track metadata:")
+            print(error)
+
+        return TrackMetadata(title, artist, duration, artwork)
+
+    @staticmethod
+    def _default_artwork() -> Image.Image:
+        """Create a neutral built-in cover when a track has no embedded art."""
+        artwork = Image.new("RGB", (160, 160), "#1f6aa5")
+        draw = ImageDraw.Draw(artwork)
+        draw.ellipse((35, 35, 125, 125), fill="#252526", outline="#22C55E", width=5)
+        draw.rectangle((75, 57, 84, 108), fill="#ffffff")
+        draw.ellipse((66, 99, 84, 117), fill="#ffffff")
+        return artwork
 
     # ===================================
     # Pause

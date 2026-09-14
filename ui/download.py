@@ -1,13 +1,21 @@
 import customtkinter as ctk
 from core.theme import *
-from core.downloader import download_media as start_download
-import threading
+from core.download_queue import DownloadJob, DownloadQueue
+from typing import Callable
 
 
 class DownloadPage(ctk.CTkFrame):
 
-    def __init__(self, master):
+    def __init__(
+        self,
+        master,
+        on_download_completed: Callable[[], None] | None = None,
+    ):
         super().__init__(master)
+
+        self.download_queue = DownloadQueue()
+        self.on_download_completed = on_download_completed
+        self._last_status: dict[str, str] = {}
 
         # ===========================
         # Title
@@ -208,6 +216,22 @@ class DownloadPage(ctk.CTkFrame):
             pady=(0, 20)
         )
 
+        queue_title = ctk.CTkLabel(
+            self,
+            text="Download Queue",
+            font=("Segoe UI", 18, "bold"),
+            text_color=TEXT,
+        )
+        queue_title.pack(anchor="w", padx=60, pady=(0, 8))
+
+        self.queue_frame = ctk.CTkScrollableFrame(
+            self,
+            height=190,
+        )
+        self.queue_frame.pack(fill="both", expand=True, padx=60, pady=(0, 25))
+
+        self.refresh_queue()
+
     # ===================================
     # Download Function
     # ===================================
@@ -232,116 +256,74 @@ class DownloadPage(ctk.CTkFrame):
             )
             return
 
-        # ===========================
-        # Reset Progress
-        # ===========================
-
         self.progress_bar.set(0)
-
         self.status_label.configure(
-            text="Starting download..."
+            text="Added to download queue."
         )
-
-        # ===========================
-        # Disable Button
-        # ===========================
-
-        self.download_button.configure(
-            state="disabled"
-        )
-
-        # ===========================
-        # Progress Callback
-        # ===========================
-
-        def update_progress(percent, status):
-
-            self.after(
-                0,
-                lambda: self.update_progress_ui(
-                    percent,
-                    status
-                )
-            )
-
-        # ===========================
-        # Run Download in Background
-        # ===========================
-
-        def run_download():
-
-            try:
-
-                start_download(
-                    url,
-                    media,
-                    start,
-                    end,
-                    progress_callback=update_progress
-                )
-
-            except Exception as e:
-
-                print("Download error:", e)
-
-                self.after(
-                    0,
-                    lambda: self.status_label.configure(
-                        text=f"Error: {str(e)}"
-                    )
-                )
-
-            finally:
-
-                self.after(
-                    0,
-                    lambda: self.download_button.configure(
-                        state="normal"
-                    )
-                )
-
-        # ===========================
-        # Start Thread
-        # ===========================
-
-        threading.Thread(
-            target=run_download,
-            daemon=True
-        ).start()
+        self.download_queue.add_job(url, media, start, end)
 
     # ===================================
-    # Update Progress UI
+    # Queue rendering
     # ===================================
 
-    def update_progress_ui(
-        self,
-        percent,
-        status
-    ):
+    def refresh_queue(self) -> None:
+        jobs = self.download_queue.get_jobs()
+        for widget in self.queue_frame.winfo_children():
+            widget.destroy()
 
-        # Keep value between 0 and 100
+        if not jobs:
+            ctk.CTkLabel(
+                self.queue_frame,
+                text="No downloads queued.",
+                text_color=TEXT,
+            ).pack(pady=20)
 
-        percent = max(
-            0,
-            min(100, percent)
-        )
+        for job in jobs:
+            self.create_job_row(job)
+            previous_status = self._last_status.get(job.id)
+            if job.status == "completed" and previous_status != "completed":
+                self.status_label.configure(text="Download complete!")
+                if self.on_download_completed:
+                    self.on_download_completed()
+            elif job.status == "failed" and previous_status != "failed":
+                self.status_label.configure(text=f"Download failed: {job.error or 'Unknown error'}")
+            elif job.status == "cancelled" and previous_status != "cancelled":
+                self.status_label.configure(text="Download cancelled.")
+            self._last_status[job.id] = job.status
 
-        # Update progress bar
+        self.after(250, self.refresh_queue)
 
-        self.progress_bar.set(
-            percent / 100
-        )
+    def create_job_row(self, job: DownloadJob) -> None:
+        row = ctk.CTkFrame(self.queue_frame)
+        row.pack(fill="x", padx=5, pady=5)
 
-        # Update status text
+        title = job.url if len(job.url) <= 68 else f"{job.url[:65]}..."
+        ctk.CTkLabel(
+            row,
+            text=f"{job.media_type.title()} — {title}",
+            anchor="w",
+            text_color=TEXT,
+        ).pack(fill="x", padx=12, pady=(8, 1))
 
-        if percent >= 100:
+        detail = job.status.title()
+        if job.status in {"downloading", "processing"}:
+            detail = f"{detail} — {job.progress:.1f}%"
+        elif job.error:
+            detail = f"{detail} — {job.error}"
 
-            self.status_label.configure(
-                text=status
-            )
+        detail_frame = ctk.CTkFrame(row, fg_color="transparent")
+        detail_frame.pack(fill="x", padx=12, pady=(1, 8))
+        ctk.CTkLabel(detail_frame, text=detail, text_color=TEXT).pack(side="left")
 
-        else:
+        if job.status in {"queued", "downloading", "processing"}:
+            ctk.CTkButton(
+                detail_frame,
+                text="Cancel",
+                width=75,
+                height=28,
+                command=lambda job_id=job.id: self.download_queue.cancel_job(job_id),
+            ).pack(side="right")
 
-            self.status_label.configure(
-                text=f"{status} {percent:.1f}%"
-            )
+        progress = ctk.CTkProgressBar(row)
+        progress.set(job.progress / 100)
+        progress.pack(fill="x", padx=12, pady=(0, 10))

@@ -1,12 +1,25 @@
 import os
-import threading
+from collections.abc import Callable
+
 import yt_dlp
 
 
 DOWNLOAD_FOLDER = "downloads"
+ProgressCallback = Callable[[float, str], None]
 
 
-def download_media(url, media_type, start="", end="", progress_callback=None):
+class DownloadCancelled(Exception):
+    """Raised when a queued download is cancelled by the user."""
+
+
+def download_media(
+    url: str,
+    media_type: str,
+    start: str = "",
+    end: str = "",
+    progress_callback: ProgressCallback | None = None,
+    is_cancelled: Callable[[], bool] | None = None,
+) -> str | None:
 
     os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
 
@@ -16,6 +29,9 @@ def download_media(url, media_type, start="", end="", progress_callback=None):
     )
 
     def progress_hook(data):
+
+        if is_cancelled and is_cancelled():
+            raise DownloadCancelled("Download cancelled by user")
 
         if data["status"] == "downloading":
 
@@ -87,10 +103,21 @@ def download_media(url, media_type, start="", end="", progress_callback=None):
 
         with yt_dlp.YoutubeDL(ydl_options) as ydl:
 
-            ydl.download([url])
+            info = ydl.extract_info(url, download=True)
+
+            if is_cancelled and is_cancelled():
+                raise DownloadCancelled("Download cancelled by user")
+
+            output_path = ydl.prepare_filename(info)
+            if media_type == "audio":
+                output_path = os.path.splitext(output_path)[0] + ".mp3"
+            else:
+                output_path = os.path.splitext(output_path)[0] + ".mp4"
 
         if progress_callback:
             progress_callback(100, "Download complete!")
+
+        return output_path
 
     except Exception as e:
 
@@ -98,3 +125,4 @@ def download_media(url, media_type, start="", end="", progress_callback=None):
             progress_callback(0, f"Error: {str(e)}")
 
         print("Download error:", e)
+        raise
