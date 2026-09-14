@@ -3,8 +3,9 @@ from collections.abc import Callable
 
 import yt_dlp
 
+from core.settings import SettingsStore
 
-DOWNLOAD_FOLDER = "downloads"
+
 ProgressCallback = Callable[[float, str], None]
 
 
@@ -21,10 +22,12 @@ def download_media(
     is_cancelled: Callable[[], bool] | None = None,
 ) -> str | None:
 
-    os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
+    settings = SettingsStore().settings
+    download_folder = settings.download_location
+    os.makedirs(download_folder, exist_ok=True)
 
     output = os.path.join(
-        DOWNLOAD_FOLDER,
+        download_folder,
         "%(title)s.%(ext)s"
     )
 
@@ -67,7 +70,7 @@ def download_media(
                 {
                     "key": "FFmpegExtractAudio",
                     "preferredcodec": "mp3",
-                    "preferredquality": "192",
+                    "preferredquality": settings.audio_quality,
                 }
             ],
         })

@@ -6,6 +6,8 @@ from ui.download import DownloadPage
 from ui.library import LibraryPage
 from ui.mini_player import MiniPlayer
 from ui.settings import SettingsPage
+from ui.splash import SplashScreen
+from core.settings import AppSettings, SettingsStore
 
 
 ctk.set_appearance_mode("dark")
@@ -17,8 +19,11 @@ class WOWMAZING(ctk.CTk):
     def __init__(self):
         super().__init__()
 
+        self.settings_store = SettingsStore()
+        ctk.set_appearance_mode(self.settings_store.settings.theme.lower())
         self.title("WOWMAZING")
         self.geometry("1400x800")
+        self.withdraw()
 
         self.sidebar = Sidebar(self)
         self.sidebar.pack(side="left", fill="y")
@@ -32,7 +37,11 @@ class WOWMAZING(ctk.CTk):
         self.pages = {
             "home": HomePage(self.content),
             "library": LibraryPage(self.content),
-            "settings": SettingsPage(self.content)
+            "settings": SettingsPage(
+                self.content,
+                self.settings_store,
+                self.apply_settings,
+            )
         }
         self.pages["download"] = DownloadPage(
             self.content,
@@ -41,9 +50,11 @@ class WOWMAZING(ctk.CTk):
         self.mini_player = MiniPlayer(self.main_area, self.pages["library"])
         self.mini_player.pack(side="bottom", fill="x")
 
-        self.show_page("home")
+        self.show_page(self.settings_store.settings.startup_page)
 
         self.sidebar.set_callback(self.show_page)
+        self.splash = SplashScreen(self)
+        self.after(2000, self.finish_launch)
 
     def show_page(self, name):
 
@@ -51,6 +62,16 @@ class WOWMAZING(ctk.CTk):
             page.pack_forget()
 
         self.pages[name].pack(fill="both", expand=True)
+
+    def apply_settings(self, settings: AppSettings):
+
+        ctk.set_appearance_mode(settings.theme.lower())
+
+    def finish_launch(self):
+
+        if self.splash.winfo_exists():
+            self.splash.destroy()
+        self.deiconify()
 
 
 app = WOWMAZING()

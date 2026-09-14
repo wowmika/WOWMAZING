@@ -8,6 +8,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
+from core.paths import app_data_path
+
 
 @dataclass(frozen=True)
 class Playlist:
@@ -23,7 +25,7 @@ class PlaylistStore:
     """Manages playlists plus the local history required for smart playlists."""
 
     def __init__(self, path: Path | None = None) -> None:
-        self.path = path or Path(__file__).resolve().parent.parent / "database" / "playlists.json"
+        self.path = path or app_data_path("database/playlists.json")
         self._data = self._load()
 
     def get_playlists(self) -> list[Playlist]:

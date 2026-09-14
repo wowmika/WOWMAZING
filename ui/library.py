@@ -1,7 +1,9 @@
 import customtkinter as ctk
 from core.theme import *
 from core.player import MusicPlayer
+from core.paths import app_data_path
 from core.playlists import Playlist, PlaylistStore
+from core.settings import SettingsStore
 import os
 import random
 import json
@@ -60,13 +62,7 @@ class LibraryPage(ctk.CTkFrame):
         # Favorites
         # ===========================
 
-        self.favorites_file = os.path.join(
-            os.path.dirname(
-                os.path.dirname(__file__)
-            ),
-            "database",
-            "favorites.json"
-        )
+        self.favorites_file = str(app_data_path("database/favorites.json"))
 
         self.favorites = set()
         self.favorites_only = False
@@ -578,7 +574,7 @@ class LibraryPage(ctk.CTkFrame):
     def create_playlist_cover(self, playlist: Playlist):
 
         collage = Image.new("RGB", (104, 104), "#1f6aa5")
-        downloads_folder = os.path.join(os.path.dirname(os.path.dirname(__file__)), "downloads")
+        downloads_folder = self.get_downloads_folder()
         songs = playlist.songs[:4]
         for index in range(4):
             artwork = None
@@ -1063,17 +1059,17 @@ class LibraryPage(ctk.CTkFrame):
     # Load Files
     # ===================================
 
+    @staticmethod
+    def get_downloads_folder():
+
+        return SettingsStore().settings.download_location
+
     def load_files(self):
 
         for widget in self.files_frame.winfo_children():
             widget.destroy()
 
-        downloads_folder = os.path.join(
-            os.path.dirname(
-                os.path.dirname(__file__)
-            ),
-            "downloads"
-        )
+        downloads_folder = self.get_downloads_folder()
 
         os.makedirs(
             downloads_folder,
@@ -1180,12 +1176,7 @@ class LibraryPage(ctk.CTkFrame):
         for widget in self.files_frame.winfo_children():
             widget.destroy()
 
-        downloads_folder = os.path.join(
-            os.path.dirname(
-                os.path.dirname(__file__)
-            ),
-            "downloads"
-        )
+        downloads_folder = self.get_downloads_folder()
 
         query = query.strip().lower()
 
