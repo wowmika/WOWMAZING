@@ -1,9 +1,13 @@
 import customtkinter as ctk
 from core.theme import *
 from core.player import MusicPlayer
+from core.playlists import Playlist, PlaylistStore
 import os
 import random
 import json
+import tkinter as tk
+
+from PIL import Image
 
 
 class LibraryPage(ctk.CTkFrame):
@@ -44,6 +48,15 @@ class LibraryPage(ctk.CTkFrame):
         self.search_query = ""
 
         # ===========================
+        # Playlists
+        # ===========================
+
+        self.playlist_store = PlaylistStore()
+        self.active_playlist_id = None
+        self.active_smart_playlist = None
+        self.playlist_cover_images = {}
+
+        # ===========================
         # Favorites
         # ===========================
 
@@ -59,6 +72,8 @@ class LibraryPage(ctk.CTkFrame):
         self.favorites_only = False
 
         self.load_favorites()
+
+        self.build_playlist_sidebar()
 
         # ===========================
         # Title
@@ -458,6 +473,183 @@ class LibraryPage(ctk.CTkFrame):
         # ===========================
 
         self.update_progress()
+
+    # ===================================
+    # Playlist Sidebar
+    # ===================================
+
+    def build_playlist_sidebar(self):
+
+        self.playlist_sidebar = ctk.CTkFrame(self, width=245)
+        self.playlist_sidebar.pack(side="left", fill="y", padx=(20, 10), pady=25)
+        self.playlist_sidebar.pack_propagate(False)
+
+        ctk.CTkLabel(
+            self.playlist_sidebar,
+            text="Playlists",
+            font=("Segoe UI", 19, "bold"),
+            text_color=TEXT,
+        ).pack(anchor="w", padx=15, pady=(15, 8))
+
+        action_frame = ctk.CTkFrame(self.playlist_sidebar, fg_color="transparent")
+        action_frame.pack(fill="x", padx=12, pady=(0, 8))
+        ctk.CTkButton(
+            action_frame,
+            text="＋ New",
+            width=70,
+            command=self.create_playlist,
+        ).pack(side="left", padx=(0, 5))
+        ctk.CTkButton(
+            action_frame,
+            text="Rename",
+            width=70,
+            command=self.rename_playlist,
+        ).pack(side="left", padx=2)
+        ctk.CTkButton(
+            action_frame,
+            text="Delete",
+            width=70,
+            command=self.delete_playlist,
+        ).pack(side="left", padx=(5, 0))
+
+        self.playlist_list = ctk.CTkScrollableFrame(self.playlist_sidebar)
+        self.playlist_list.pack(fill="both", expand=True, padx=10, pady=(0, 12))
+        self.refresh_playlist_sidebar()
+
+    def refresh_playlist_sidebar(self):
+
+        for widget in self.playlist_list.winfo_children():
+            widget.destroy()
+        self.playlist_cover_images = {}
+
+        self._playlist_button("♪ All Songs", self.select_all_songs)
+        self._playlist_button("◷ Recently Played", lambda: self.select_smart_playlist("recent"))
+        self._playlist_button("↗ Most Played", lambda: self.select_smart_playlist("most"))
+
+        if self.playlist_store.get_playlists():
+            ctk.CTkLabel(
+                self.playlist_list,
+                text="YOUR PLAYLISTS",
+                font=("Segoe UI", 11, "bold"),
+                text_color=TEXT_SECONDARY,
+            ).pack(anchor="w", padx=8, pady=(15, 5))
+
+        for playlist in self.playlist_store.get_playlists():
+            self._playlist_card(playlist)
+
+    def _playlist_button(self, text, command):
+
+        ctk.CTkButton(
+            self.playlist_list,
+            text=text,
+            anchor="w",
+            height=34,
+            fg_color="transparent",
+            hover_color="#333333",
+            command=command,
+        ).pack(fill="x", padx=3, pady=2)
+
+    def _playlist_card(self, playlist: Playlist):
+
+        card = ctk.CTkFrame(self.playlist_list, fg_color="#2b2b2b")
+        card.pack(fill="x", padx=3, pady=4)
+        cover = self.create_playlist_cover(playlist)
+        self.playlist_cover_images[playlist.id] = cover
+        ctk.CTkButton(
+            card,
+            text="",
+            image=cover,
+            width=52,
+            height=52,
+            fg_color="transparent",
+            hover_color="#3a3a3a",
+            command=lambda playlist_id=playlist.id: self.select_playlist(playlist_id),
+        ).pack(side="left", padx=(7, 4), pady=7)
+        ctk.CTkButton(
+            card,
+            text=f"{playlist.name}\n{len(playlist.songs)} songs",
+            anchor="w",
+            font=("Segoe UI", 12, "bold"),
+            fg_color="transparent",
+            hover_color="#3a3a3a",
+            command=lambda playlist_id=playlist.id: self.select_playlist(playlist_id),
+        ).pack(side="left", fill="x", expand=True, padx=(0, 5), pady=7)
+
+    def create_playlist_cover(self, playlist: Playlist):
+
+        collage = Image.new("RGB", (104, 104), "#1f6aa5")
+        downloads_folder = os.path.join(os.path.dirname(os.path.dirname(__file__)), "downloads")
+        songs = playlist.songs[:4]
+        for index in range(4):
+            artwork = None
+            if index < len(songs):
+                filepath = os.path.join(downloads_folder, songs[index])
+                if os.path.exists(filepath) and filepath.lower().endswith(".mp3"):
+                    artwork = self.player.get_track_metadata(filepath).artwork
+            if artwork is None:
+                artwork = self.player._default_artwork()
+            tile = artwork.copy().resize((52, 52), Image.Resampling.LANCZOS)
+            collage.paste(tile, ((index % 2) * 52, (index // 2) * 52))
+        return ctk.CTkImage(light_image=collage, dark_image=collage, size=(52, 52))
+
+    def select_all_songs(self):
+
+        self.active_playlist_id = None
+        self.active_smart_playlist = None
+        self.display_files(self.search_query)
+
+    def select_playlist(self, playlist_id):
+
+        self.active_playlist_id = playlist_id
+        self.active_smart_playlist = None
+        self.display_files(self.search_query)
+
+    def select_smart_playlist(self, name):
+
+        self.active_playlist_id = None
+        self.active_smart_playlist = name
+        self.display_files(self.search_query)
+
+    def create_playlist(self):
+
+        dialog = ctk.CTkInputDialog(text="Playlist name:", title="Create Playlist")
+        name = dialog.get_input()
+        if not name:
+            return
+        try:
+            playlist = self.playlist_store.create_playlist(name)
+        except ValueError:
+            return
+        self.active_playlist_id = playlist.id
+        self.active_smart_playlist = None
+        self.refresh_playlist_sidebar()
+        self.display_files(self.search_query)
+
+    def rename_playlist(self):
+
+        if not self.active_playlist_id:
+            return
+        playlist = self.playlist_store.get_playlist(self.active_playlist_id)
+        if not playlist:
+            return
+        dialog = ctk.CTkInputDialog(text="Playlist name:", title="Rename Playlist")
+        name = dialog.get_input()
+        if not name:
+            return
+        try:
+            self.playlist_store.rename_playlist(playlist.id, name)
+        except ValueError:
+            return
+        self.refresh_playlist_sidebar()
+
+    def delete_playlist(self):
+
+        if not self.active_playlist_id:
+            return
+        self.playlist_store.delete_playlist(self.active_playlist_id)
+        self.active_playlist_id = None
+        self.refresh_playlist_sidebar()
+        self.display_files(self.search_query)
 
     # ===================================
     # Format Time
@@ -1003,6 +1195,34 @@ class LibraryPage(ctk.CTkFrame):
 
         files = list(self.all_files)
 
+        if self.active_playlist_id:
+
+            playlist = self.playlist_store.get_playlist(
+                self.active_playlist_id
+            )
+
+            files = [
+                filename
+                for filename in (playlist.songs if playlist else [])
+                if filename in self.all_files
+            ]
+
+        elif self.active_smart_playlist == "recent":
+
+            files = [
+                filename
+                for filename in self.playlist_store.recently_played()
+                if filename in self.all_files
+            ]
+
+        elif self.active_smart_playlist == "most":
+
+            files = [
+                filename
+                for filename in self.playlist_store.most_played()
+                if filename in self.all_files
+            ]
+
         if query:
 
             files = [
@@ -1047,6 +1267,33 @@ class LibraryPage(ctk.CTkFrame):
     # Create File Row
     # ===================================
 
+    def show_add_to_playlist_menu(self, event, filename):
+
+        menu = tk.Menu(self, tearoff=0)
+        playlists = self.playlist_store.get_playlists()
+        if not playlists:
+            menu.add_command(label="Create a playlist first", state="disabled")
+        else:
+            for playlist in playlists:
+                menu.add_command(
+                    label=f"Add to {playlist.name}",
+                    command=lambda playlist_id=playlist.id: self.add_song_to_playlist(
+                        playlist_id,
+                        filename,
+                    ),
+                )
+        try:
+            menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            menu.grab_release()
+
+    def add_song_to_playlist(self, playlist_id, filename):
+
+        self.playlist_store.add_song(playlist_id, filename)
+        self.refresh_playlist_sidebar()
+        if self.active_playlist_id == playlist_id:
+            self.display_files(self.search_query)
+
     def create_file_row(
         self,
         filename,
@@ -1065,6 +1312,12 @@ class LibraryPage(ctk.CTkFrame):
         )
 
         row.pack_propagate(False)
+
+        context_menu = lambda event: self.show_add_to_playlist_menu(
+            event,
+            filename
+        )
+        row.bind("<Button-3>", context_menu)
 
         extension = os.path.splitext(
             filename
@@ -1100,6 +1353,7 @@ class LibraryPage(ctk.CTkFrame):
             side="left",
             padx=(15, 10)
         )
+        icon_label.bind("<Button-3>", context_menu)
 
         # ===========================
         # Favorite Button
@@ -1124,6 +1378,7 @@ class LibraryPage(ctk.CTkFrame):
             side="right",
             padx=(5, 5)
         )
+        favorite_button.bind("<Button-3>", context_menu)
 
         # ===========================
         # Filename
@@ -1143,6 +1398,7 @@ class LibraryPage(ctk.CTkFrame):
             expand=True,
             padx=10
         )
+        name_label.bind("<Button-3>", context_menu)
 
         # ===========================
         # MP3 Play Button
@@ -1170,6 +1426,7 @@ class LibraryPage(ctk.CTkFrame):
                 side="right",
                 padx=(5, 5)
             )
+            play_button.bind("<Button-3>", context_menu)
 
         # ===========================
         # Video / Other File
@@ -1197,6 +1454,7 @@ class LibraryPage(ctk.CTkFrame):
                 side="right",
                 padx=(5, 5)
             )
+            open_button.bind("<Button-3>", context_menu)
 
     # ===================================
     # Play Music
@@ -1221,6 +1479,11 @@ class LibraryPage(ctk.CTkFrame):
             if success:
 
                 self.current_file = filepath
+
+                self.playlist_store.record_play(
+                    os.path.basename(filepath)
+                )
+                self.refresh_playlist_sidebar()
 
                 # Find current song index
 
