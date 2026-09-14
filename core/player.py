@@ -25,7 +25,7 @@ class MusicPlayer:
         # Initialize pygame mixer
         # ===================================
 
-        pygame.mixer.init()
+        self._mixer_initialized = False
 
         self.current_file = None
         self.is_playing = False
@@ -36,6 +36,12 @@ class MusicPlayer:
 
         # Position from which playback started
         self.seek_offset = 0
+
+    def _ensure_mixer(self):
+        """Delay audio-device startup until the user actually plays a track."""
+        if not self._mixer_initialized:
+            pygame.mixer.init()
+            self._mixer_initialized = True
 
     # ===================================
     # Play
@@ -56,6 +62,7 @@ class MusicPlayer:
             # Load music
             # ===================================
 
+            self._ensure_mixer()
             pygame.mixer.music.load(filepath)
 
             # ===================================
@@ -161,6 +168,7 @@ class MusicPlayer:
 
         if self.is_playing and not self.is_paused:
 
+            self._ensure_mixer()
             pygame.mixer.music.pause()
 
             self.is_paused = True
@@ -175,6 +183,7 @@ class MusicPlayer:
 
         if self.is_paused:
 
+            self._ensure_mixer()
             pygame.mixer.music.unpause()
 
             self.is_paused = False
@@ -187,7 +196,8 @@ class MusicPlayer:
 
     def stop(self):
 
-        pygame.mixer.music.stop()
+        if self._mixer_initialized:
+            pygame.mixer.music.stop()
 
         self.is_playing = False
         self.is_paused = False
@@ -211,6 +221,7 @@ class MusicPlayer:
                 min(1, volume)
             )
 
+            self._ensure_mixer()
             pygame.mixer.music.set_volume(
                 volume
             )
@@ -307,6 +318,7 @@ class MusicPlayer:
             self.seek_offset = seconds
 
             # Start from selected position
+            self._ensure_mixer()
             pygame.mixer.music.play(
                 start=seconds
             )
@@ -335,6 +347,8 @@ class MusicPlayer:
 
         try:
 
+            if not self._mixer_initialized:
+                return False
             return pygame.mixer.music.get_busy()
 
         except Exception:
@@ -356,7 +370,7 @@ class MusicPlayer:
         if not self.is_playing:
             return False
 
-        return not pygame.mixer.music.get_busy()
+        return not self.is_music_playing()
 
     # ===================================
     # Reset
@@ -364,7 +378,8 @@ class MusicPlayer:
 
     def reset(self):
 
-        pygame.mixer.music.stop()
+        if self._mixer_initialized:
+            pygame.mixer.music.stop()
 
         self.current_file = None
         self.is_playing = False

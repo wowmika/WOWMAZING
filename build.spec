@@ -27,6 +27,7 @@ exe = EXE(
     a.datas,
     [],
     name="WOWMAZING",
+    icon=str(project_root / "application.ico"),
     console=False,
     debug=False,
     strip=False,
