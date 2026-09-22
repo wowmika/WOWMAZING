@@ -109,7 +109,7 @@ export default function MusicPage() {
       </section>
 
       {/* Screenshots */}
-      <section className="mx-auto max-w-6xl px-8 pb-20">
+      <section className="mx-auto max-w-6xl px-8 pb-24">
         <div className="mb-10">
           <p className="font-semibold tracking-[0.3em] text-cyan-400">
             SCREENSHOTS
@@ -118,20 +118,33 @@ export default function MusicPage() {
           <h2 className="mt-3 text-4xl font-black">
             Beautiful modern interface
           </h2>
+
+          <p className="mt-3 text-gray-400">
+            Click any screenshot to view it larger.
+          </p>
         </div>
 
         <div className="grid gap-6 md:grid-cols-2">
-          <img
-            src="/images/music/screen1.png"
-            alt="Library Screen"
-            className="rounded-2xl border border-white/10"
-          />
-
-          <img
-            src="/images/music/screen2.png"
-            alt="Player Screen"
-            className="rounded-2xl border border-white/10"
-          />
+          {[
+            "/images/music/screen1.png",
+            "/images/music/screen2.png",
+            "/images/music/screen3.png",
+            "/images/music/hero.png",
+          ].map((img, i) => (
+            <a
+              key={i}
+              href={img}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group overflow-hidden rounded-2xl border border-white/10 bg-white/5"
+            >
+              <img
+                src={img}
+                alt={`WOWMAZING Screenshot ${i + 1}`}
+                className="w-full transition duration-300 group-hover:scale-105"
+              />
+            </a>
+          ))}
         </div>
       </section>
 
