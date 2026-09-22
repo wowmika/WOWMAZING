@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://wowmazingstudios.com"),
+  metadataBase: new URL("https://www.wowmazingstudios.com"),
 
   title: {
     default: "WOWMAZING Studios",
@@ -25,7 +25,7 @@ export const metadata: Metadata = {
   authors: [
     {
       name: "WOWMAZING Studios",
-      url: "https://wowmazingstudios.com",
+      url: "https://www.wowmazingstudios.com",
     },
   ],
 
@@ -33,18 +33,27 @@ export const metadata: Metadata = {
 
   openGraph: {
     type: "website",
-    url: "https://wowmazingstudios.com",
+    url: "https://www.wowmazingstudios.com",
     siteName: "WOWMAZING Studios",
     title: "WOWMAZING Studios",
     description:
-      "Premium software, Windows applications, AI tools, indie games and digital experiences.",
+      "WOWMAZING Studios builds premium software, Windows applications, AI tools, indie games and digital experiences.",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "WOWMAZING Studios",
+      },
+    ],
   },
 
   twitter: {
     card: "summary_large_image",
     title: "WOWMAZING Studios",
     description:
-      "Premium software, Windows applications, AI tools, indie games and digital experiences.",
+      "WOWMAZING Studios builds premium software, Windows applications, AI tools, indie games and digital experiences.",
+    images: ["/og-image.png"],
   },
 
   robots: {
